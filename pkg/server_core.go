@@ -90,8 +90,26 @@ func (s Server) Connect(_ context.Context, r *Registration) (*AuthToken, error) 
 // Should write the chat message to a target user's private inbox in s.Inboxes.
 // The chat message should have its `User` field replaced with the sending user
 // (when you initially receive it, it will have the name of the recipient instead).
-// TODO: Implement `Send`. If any errors occur, return any error message you'd like.
 func (s Server) Send(ctx context.Context, msg *ChatMessage) (*Success, error) {
+	
+	// Get recipient's inbox
+	recipient := msg.User
+	inbox, ok := s.Inboxes[recipient]
+	if !ok {
+		return nil, errors.New("Recipient does not exist or is not connected")
+	}
+
+	// Get sender's username
+	sender, ok := ctx.Value("username").(string)
+    if !ok {
+        return nil, errors.New("Username missing from context")
+    }
+
+	// Modify and send message
+	msg.User = sender
+	inbox <- msg
+
+	return &Success{Ok: true}, nil
 }
 
 // Implementation of the Fetch method defined in our `.proto` file.
@@ -99,9 +117,34 @@ func (s Server) Send(ctx context.Context, msg *ChatMessage) (*Success, error) {
 // in batches of BATCH_SIZE. Hint: use `select` statements in a suitable `for`
 // loop to consume from the channel until some condition is reached, since you
 // don't want to accidentally miss messages.
-//
-// TODO: Implement Fetch. If any errors occur, return any error message you'd like.
 func (s Server) Fetch(ctx context.Context, _ *Empty) (*ChatMessages, error) {
+
+	// Initialize ChatMessages object
+	result := &ChatMessages{}
+
+	// Get username
+	user, ok := ctx.Value("username").(string)
+    if !ok {
+        return nil, errors.New("Username missing from context")
+    }
+
+	// Get user's inbox
+	inbox, ok := s.Inboxes[user]
+	if !ok {
+		return nil, errors.New("Inbox does not exist")
+	}
+	
+	// Get a batch of messages
+	for i := 0; i < BATCH_SIZE; i++ {
+		select {
+			case msg := <-inbox:
+				result.Messages = append(result.Messages, msg)
+			default:
+				return result, nil
+		}
+	}
+
+	return result, nil
 }
 
 // Implementation of the List method defined in our `.proto` file.
