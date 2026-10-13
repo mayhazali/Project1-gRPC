@@ -45,7 +45,7 @@ func Register(client WhatsUpClient, user string) (context.Context, error) {
 	//call Connect to retrieve token
 	token, err := client.Connect(c, &Registration{SourceUser: user})
 	if err != nil {
-		return nil, err
+		return nil, errors.New(fmt.Sprintf("failed to fetch authentication token: %s\n", err))
 	}
 	//initialize map variable to store token kay-value pair
 	m := map[string]string{"token": token.Token}
